@@ -1,5 +1,11 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 def main():
-    print("Hello from normalize-joural-titles!")
+    logging.basicConfig(format="%(levelname)s:%(message)s", level=logging.INFO)
+
+    logger.info("Hello from normalize-joural-titles!")
 
 
 if __name__ == "__main__":
