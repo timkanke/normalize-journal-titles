@@ -1,5 +1,5 @@
 [project]
-name = "normalize-joural-titles"
+name = "normalize-journal-titles"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"

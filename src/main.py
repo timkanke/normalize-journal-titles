@@ -160,9 +160,9 @@ def normalize_data(xlsx_file):
 def main():
     logging.basicConfig(format="%(levelname)s:%(message)s", level=logging.INFO)
 
-    logger.info("Hello from normalize-joural-titles!")
+    logger.info("Hello from normalize-journal-titles!")
     normalize_data()
-    logger.info("Goodbye from normalize-joural-titles!")
+    logger.info("Goodbye from normalize-journal-titles!")
 
 
 if __name__ == "__main__":
