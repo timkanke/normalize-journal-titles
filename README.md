@@ -21,3 +21,8 @@ cd normalize-journal-titles
 uv venv
 source .venv/bin/activate
 ```
+
+To run program:
+```bash
+uv run ./src/njt.py <path-to-file>
+```
