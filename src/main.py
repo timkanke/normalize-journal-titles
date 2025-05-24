@@ -1,9 +1,11 @@
 import click
 import logging
 import pandas as pd
+import json
 import os
 import requests
 
+from datetime import datetime
 from requests.exceptions import RequestException, HTTPError, ConnectionError, Timeout
 
 logger = logging.getLogger(__name__)
@@ -62,13 +64,13 @@ def normalize_data(xlsx_file):
                     if "title" in journal_info:
                         new_df.loc[idx, "title"] = journal_info["title"]
                         
-            except HTTPError:
+            except HTTPError as http_err:
                 logger.exception("Crossref exception HTTP error occurred: {http_err}")
-            except ConnectionError:
+            except ConnectionError as conn_err:
                 logger.exception("Crossref exception Connection error occurred: {conn_err}")
-            except Timeout:
+            except Timeout as timeout_err:
                 logger.exception("Crossref exception Timeout error occurred: {timeout_err}")
-            except RequestException:
+            except RequestException as req_err:
                 logger.exception("Crossref exception An error occurred: {req_err}")
             else:
                 logger.info("Crossref Request was successful.")
@@ -89,13 +91,13 @@ def normalize_data(xlsx_file):
                         new_df.loc[idx, 'issn'] = volume_info['industryIdentifiers'][0]['identifier']
                         new_df.loc[idx, 'title'] = volume_info['title']
                         
-            except HTTPError:
+            except HTTPError as http_err:
                 logger.exception("Google Books exception HTTP error occurred: {http_err}")
-            except ConnectionError:
+            except ConnectionError as conn_err:
                 logger.exception("Google Books exception Connection error occurred: {conn_err}")
-            except Timeout:
+            except Timeout as timeout_err:
                 logger.exception("Google Books exception Timeout error occurred: {timeout_err}")
-            except RequestException:
+            except RequestException as req_err:
                 logger.exception("Google Books exception An error occurred: {req_err}")
             else:
                 logger.info("Google Books Request was successful.")
@@ -160,6 +162,7 @@ def main():
 
     logger.info("Hello from normalize-journal-titles!")
     normalize_data()
+    logger.info("Goodbye from normalize-journal-titles!")
 
 
 if __name__ == "__main__":
