@@ -1,6 +1,6 @@
-# Normalize Joural Titles
+# Normalize Journal Titles
 
-Normalize Joural Titles (NJT) is a command line tool to normalize journal titles obtained from user-entered data for interlibrary loan reports.
+Normalize Journal Titles (NJT) is a command line tool to normalize journal titles obtained from user-entered data for interlibrary loan reports.
 
 ## Development Environment
 This section provides guidance on setting up a NJT development environment on a local workstation.
@@ -16,8 +16,8 @@ See the following for setup instructions:
 Clone NJT from GitHub
 
 ```bash
-git clone git@github.com:timkanke/normalize-joural-titles
-cd normalize-joural-titles
+git clone git@github.com:timkanke/normalize-journal-titles
+cd normalize-journal-titles
 uv venv
 source .venv/bin/activate
 ```
