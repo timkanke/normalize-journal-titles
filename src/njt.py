@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 from njt_isxn_utils import remove_non_issn, remove_non_isbn
-from njt_requests import issn_lookup
+from njt_requests import issn_lookup, isbn_lookup
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,9 @@ def normalize(xlsx_file):
     issn_and_titles = issn_lookup(issn_list)
     logger.debug(issn_and_titles)
 
-    # TODO Add isbn_lookup
+    # Lookup requests for title by isbn
+    isbn_and_titles = isbn_lookup(isbn_list)
+    logger.debug(isbn_and_titles)
     
     # Add columns with new data
 
