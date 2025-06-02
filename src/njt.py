@@ -13,7 +13,11 @@ logger = logging.getLogger(__name__)
 @click.command()
 @click.argument('xlsx_file', type=click.Path(exists=True))
 def normalize(xlsx_file):
+    # TODO Change to persitent storage when adding comparing lists feature.
     con = duckdb.connect(':memory:')
+
+    # Create isxn_lookup table
+    con.execute("CREATE TABLE IF NOT EXISTS isxn_lookup (normalized_isxn VARCHAR, normalized_title VARCHAR)")
 
     # load file
     con.execute("CREATE TABLE report AS SELECT * FROM read_xlsx(?)", [xlsx_file])
@@ -31,15 +35,20 @@ def normalize(xlsx_file):
     isbn_list = remove_non_isbn(issn_column)
     logger.debug(isbn_list)
     
+    # TODO Compare issn_list and isbn_list against isxn_lookup table. Remove matches from list.
+
     # Lookup requests for title by isxn
     issn_and_titles = issn_lookup(issn_list)
     logger.debug(issn_and_titles)
+    con.executemany("INSERT INTO isxn_lookup VALUES (?, ?)", issn_and_titles)
 
     # Lookup requests for title by isbn
     isbn_and_titles = isbn_lookup(isbn_list)
     logger.debug(isbn_and_titles)
-    
-    # Add columns with new data
+    con.executemany("INSERT INTO isxn_lookup VALUES (?, ?)", isbn_and_titles)
+
+    # TODO Add columns and match new data in isxn_lookup to report
+    print(con.execute('SELECT * FROM isxn_lookup').fetchall())
 
     # save file
     path = Path(xlsx_file)
@@ -47,7 +56,6 @@ def normalize(xlsx_file):
     con.sql(f"COPY report TO '{save_xlsx_file}' WITH (FORMAT xlsx)")
 
     
-
 def main():
     logging.basicConfig(format="%(levelname)s:%(message)s", level=logging.DEBUG)
 
