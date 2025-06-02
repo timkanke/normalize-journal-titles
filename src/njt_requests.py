@@ -10,11 +10,6 @@ logger = logging.getLogger(__name__)
 def issn_lookup(issn_list):
     issn_and_titles = []
     for x_issn in issn_list:
-        # x = str(x)
-        # new_df.loc[idx, 'original'] = x
-        # x_short = x.replace("-", "").replace(" ", "").strip()
-        # if len(x_short) == 8:
-        #     x_issn = x_short[0:4] + "-" + x_short[4:8]
 
         api_url = f"https://api.crossref.org/journals/{x_issn}"
         try:
@@ -77,7 +72,6 @@ def isbn_lookup(isbn_list):
             logger.exception("Google Books exception An error occurred: {req_err}")
         else:
             logger.info("Google Books Request was successful.")
-
 
     # logger.debug(isbn_and_titles)
     return isbn_and_titles
