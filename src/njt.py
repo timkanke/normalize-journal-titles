@@ -27,6 +27,8 @@ def normalize(xlsx_file):
     issn_column = [item[0] for item in issn_tuple]
     logger.debug(issn_column)
 
+    # TODO Add cleanup to catch extra characters ie. dashes in isbn
+
     # Create issn_list from issn_column
     issn_list = remove_non_issn(issn_column)
     logger.debug(issn_list)
@@ -47,15 +49,9 @@ def normalize(xlsx_file):
     logger.debug(isbn_and_titles)
     con.executemany("INSERT INTO isxn_lookup VALUES (?, ?)", isbn_and_titles)
 
-    # TODO Add columns and match new data in isxn_lookup to report
-    # print(con.execute('SELECT * FROM isxn_lookup').fetchall())
-    # print(con.execute('SELECT * FROM report JOIN isxn_lookup on ISSN = normalized_isxn').fetchall())
-
-
-    # save file
+    # Add columns and match new data in isxn_lookup to report and save file
     path = Path(xlsx_file)
     save_xlsx_file = path.parent / (path.stem + "_NORMALIZED" + path.suffix)
-    # con.sql(f"COPY report TO '{save_xlsx_file}' WITH (FORMAT xlsx)")
     con.sql(f"COPY (SELECT * FROM report LEFT OUTER JOIN isxn_lookup on ISSN = normalized_isxn) TO '{save_xlsx_file}' WITH (FORMAT xlsx, HEADER true)")
 
     

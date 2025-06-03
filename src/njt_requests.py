@@ -24,20 +24,18 @@ def issn_lookup(issn_list):
                 if "title" in journal_info:
                     new_title = journal_info["title"]
                 issn_and_titles.append(tuple((new_issn, new_title)))
-                logger.debug(new_issn, new_title)
 
         except HTTPError:
-            logger.exception("Crossref exception HTTP error occurred: {http_err}")
+            logger.exception("Crossref exception HTTP error occurred")
         except ConnectionError:
-            logger.exception("Crossref exception Connection error occurred: {conn_err}")
+            logger.exception("Crossref exception Connection error occurred")
         except Timeout:
-            logger.exception("Crossref exception Timeout error occurred: {timeout_err}")
+            logger.exception("Crossref exception Timeout error occurred")
         except RequestException:
-            logger.exception("Crossref exception An error occurred: {req_err}")
+            logger.exception("Crossref exception An error occurred")
         else:
             logger.info("Crossref Request was successful.")
 
-    # logger.debug(issn_and_titles)
     return issn_and_titles
         
 # Iterate through the transaction list and search for corresponding ISSNs and titles from Google Books
@@ -58,20 +56,16 @@ def isbn_lookup(isbn_list):
                     new_isbn = volume_info['industryIdentifiers'][0]['identifier']
                     new_title = volume_info['title']
                     isbn_and_titles.append(tuple((new_isbn, new_title)))
-                    logger.debug(new_isbn, new_title)
-                    # new_df.loc[idx, 'issn'] = volume_info['industryIdentifiers'][0]['identifier']
-                    # new_df.loc[idx, 'title'] = volume_info['title']
                     
         except HTTPError:
-            logger.exception("Google Books exception HTTP error occurred: {http_err}")
+            logger.exception("Google Books exception HTTP error occurred")
         except ConnectionError:
-            logger.exception("Google Books exception Connection error occurred: {conn_err}")
+            logger.exception("Google Books exception Connection error occurred")
         except Timeout:
-            logger.exception("Google Books exception Timeout error occurred: {timeout_err}")
+            logger.exception("Google Books exception Timeout error occurred")
         except RequestException:
-            logger.exception("Google Books exception An error occurred: {req_err}")
+            logger.exception("Google Books exception An error occurred")
         else:
             logger.info("Google Books Request was successful.")
 
-    # logger.debug(isbn_and_titles)
     return isbn_and_titles
