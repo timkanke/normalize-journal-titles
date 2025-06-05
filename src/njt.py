@@ -17,7 +17,7 @@ def normalize(xlsx_file):
     con = duckdb.connect(':memory:')
 
     # Create isxn_lookup table
-    con.execute("CREATE TABLE IF NOT EXISTS isxn_lookup (normalized_isxn VARCHAR, normalized_title VARCHAR)")
+    con.execute("CREATE TABLE IF NOT EXISTS isxn_lookup (ISSN VARCHAR, normalized_isxn VARCHAR, normalized_title VARCHAR)")
 
     # load file
     con.execute("CREATE TABLE report AS SELECT * FROM read_xlsx(?)", [xlsx_file])
@@ -42,17 +42,20 @@ def normalize(xlsx_file):
     # Lookup requests for title by isxn
     issn_and_titles = issn_lookup(issn_list)
     logger.debug(issn_and_titles)
-    con.executemany("INSERT INTO isxn_lookup VALUES (?, ?)", issn_and_titles)
+    con.executemany("INSERT INTO isxn_lookup VALUES (?, ?, ?)", issn_and_titles)
 
     # Lookup requests for title by isbn
     isbn_and_titles = isbn_lookup(isbn_list)
     logger.debug(isbn_and_titles)
-    con.executemany("INSERT INTO isxn_lookup VALUES (?, ?)", isbn_and_titles)
+    if isbn_and_titles:
+        con.executemany("INSERT INTO isxn_lookup VALUES (?, ?, ?)", isbn_and_titles)
+    else:
+        logger.info("Scraped book list is empty.")
 
     # Add columns and match new data in isxn_lookup to report and save file
     path = Path(xlsx_file)
     save_xlsx_file = path.parent / (path.stem + "_NORMALIZED" + path.suffix)
-    con.sql(f"COPY (SELECT * FROM report LEFT OUTER JOIN isxn_lookup on ISSN = normalized_isxn) TO '{save_xlsx_file}' WITH (FORMAT xlsx, HEADER true)")
+    con.sql(f"COPY (SELECT * FROM report LEFT OUTER JOIN isxn_lookup on report.ISSN = isxn_lookup.ISSN) TO '{save_xlsx_file}' WITH (FORMAT xlsx, HEADER true)")
 
     
 def main():

@@ -23,7 +23,7 @@ def issn_lookup(issn_list):
                     new_issn = journal_info["ISSN"][0]
                 if "title" in journal_info:
                     new_title = journal_info["title"]
-                issn_and_titles.append(tuple((new_issn, new_title)))
+                issn_and_titles.append(tuple((x_issn, new_issn, new_title)))
 
         except HTTPError:
             logger.exception("Crossref exception HTTP error occurred")
@@ -55,7 +55,10 @@ def isbn_lookup(isbn_list):
                     volume_info = items[0]['volumeInfo']
                     new_isbn = volume_info['industryIdentifiers'][0]['identifier']
                     new_title = volume_info['title']
-                    isbn_and_titles.append(tuple((new_isbn, new_title)))
+                    logger.debug(f"{new_isbn} , {new_title}")
+                    isbn_and_titles.append(tuple((x_isbn, new_isbn, new_title)))
+            if 'error' in book_data:
+                logger.debug(f"Error")
                     
         except HTTPError:
             logger.exception("Google Books exception HTTP error occurred")

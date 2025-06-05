@@ -1,7 +1,7 @@
 import re
 
 def is_valid_issn(item):
-    pattern = re.compile(r"^\d{4}-\d{3}[\dX]$")
+    pattern = re.compile(r"^\d{4}-?\d{3}[\dX]$")
     return bool(pattern.match(item))
 
 def remove_non_issn(issn_column):
