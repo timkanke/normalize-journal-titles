@@ -39,10 +39,13 @@ def normalize(xlsx_file):
     
     # TODO Compare issn_list and isbn_list against isxn_lookup table. Remove matches from list.
 
-    # Lookup requests for title by isxn
+    # Lookup requests for title by issn
     issn_and_titles = issn_lookup(issn_list)
     logger.debug(issn_and_titles)
-    con.executemany("INSERT INTO isxn_lookup VALUES (?, ?, ?)", issn_and_titles)
+    if issn_and_titles:
+        con.executemany("INSERT INTO isxn_lookup VALUES (?, ?, ?)", issn_and_titles)
+    else:
+        logger.info("Scraped journal list is empty.")
 
     # Lookup requests for title by isbn
     isbn_and_titles = isbn_lookup(isbn_list)
