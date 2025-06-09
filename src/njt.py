@@ -22,6 +22,15 @@ def normalize(xlsx_file):
     # load file
     con.execute("CREATE TABLE report AS SELECT * FROM read_xlsx(?)", [xlsx_file])
 
+    # load lookup_tables
+    con.execute("CREATE TABLE book_list AS SELECT * FROM './data_lookup_tables/book_list_wikidata.csv'")
+    con.sql("UPDATE book_list SET isbn_13 = REPLACE(isbn_13, '-', '')")
+    con.sql("UPDATE book_list SET isbn_10 = REPLACE(isbn_10, '-', '')")
+    # con.sql("SELECT * FROM book_list").show()
+
+    con.execute("CREATE TABLE journal_list AS SELECT * FROM './data_lookup_tables/journal_list_wikidata.csv'")
+    # con.sql("SELECT * FROM journal_list").show()
+
     # Create a list of distinct ISSN column items
     issn_tuple = con.sql("SELECT DISTINCT ISSN FROM report WHERE COLUMNS('Request Type') = 'Article'").fetchall()
     issn_column = [item[0] for item in issn_tuple]
@@ -40,25 +49,27 @@ def normalize(xlsx_file):
     # TODO Compare issn_list and isbn_list against isxn_lookup table. Remove matches from list.
 
     # Lookup requests for title by issn
-    issn_and_titles = issn_lookup(issn_list)
-    logger.debug(issn_and_titles)
-    if issn_and_titles:
-        con.executemany("INSERT INTO isxn_lookup VALUES (?, ?, ?)", issn_and_titles)
-    else:
-        logger.info("Scraped journal list is empty.")
+    # issn_and_titles = issn_lookup(issn_list)
+    # logger.debug(issn_and_titles)
+    # if issn_and_titles:
+        # con.executemany("INSERT INTO isxn_lookup VALUES (?, ?, ?)", issn_and_titles)
+    # else:
+        # logger.info("Scraped journal list is empty.")
 
     # Lookup requests for title by isbn
-    isbn_and_titles = isbn_lookup(isbn_list)
-    logger.debug(isbn_and_titles)
-    if isbn_and_titles:
-        con.executemany("INSERT INTO isxn_lookup VALUES (?, ?, ?)", isbn_and_titles)
-    else:
-        logger.info("Scraped book list is empty.")
+    # isbn_and_titles = isbn_lookup(isbn_list)
+    # logger.debug(isbn_and_titles)
+    # if isbn_and_titles:
+        # con.executemany("INSERT INTO isxn_lookup VALUES (?, ?, ?)", isbn_and_titles)
+    # else:
+        # logger.info("Scraped book list is empty.")
 
     # Add columns and match new data in isxn_lookup to report and save file
     path = Path(xlsx_file)
     save_xlsx_file = path.parent / (path.stem + "_NORMALIZED" + path.suffix)
-    con.sql(f"COPY (SELECT * FROM report LEFT OUTER JOIN isxn_lookup on report.ISSN = isxn_lookup.ISSN) TO '{save_xlsx_file}' WITH (FORMAT xlsx, HEADER true)")
+    con.sql(f"COPY (SELECT * FROM report LEFT OUTER JOIN journal_list on report.ISSN = journal_list.issn LEFT OUTER JOIN book_list on report.ISSN = book_list.isbn_13) TO '{save_xlsx_file}' WITH (FORMAT xlsx, HEADER true)")
+
+    # con.sql(f"COPY (SELECT * FROM report LEFT OUTER JOIN isxn_lookup on report.ISSN = isxn_lookup.ISSN) TO '{save_xlsx_file}' WITH (FORMAT xlsx, HEADER true)")
 
     
 def main():
