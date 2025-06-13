@@ -1,0 +1,38 @@
+@startuml erd
+!theme blueprint
+
+entity "Report" as Report {
+  *transaction_number : number
+  --
+  ...
+  photo_journal_title : varchar
+  ...
+  issn : varchar
+  ...
+}
+
+Entity "JournalList" as JournalList {
+    *journal : varchar
+    --
+    journalLabel : varchar
+    *issn : varchar
+    *issnl : varchar
+    }
+
+Entity "BookList" as BookList {
+    *hmmm : varchar
+    --
+    title : varchar
+    *isbn_13 : varchar
+    *isbn_10 : varchar
+    }
+
+Report ||..|{ JournalList
+Report ||..|{ BookList
+
+note as N1
+    Need to get wikidata Q's for list PKs
+    Is there other columns we would like for lists
+end note
+
+@enduml
