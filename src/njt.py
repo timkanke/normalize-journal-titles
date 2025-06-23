@@ -31,30 +31,35 @@ def normalize(xlsx_file):
     con.execute("CREATE TABLE journal_list AS SELECT * FROM './data_lookup_tables/journal_list_wikidata.csv'")
     # con.sql("SELECT * FROM journal_list").show()
 
+    # Create new table joining wikidata list issn
+    con.sql(f"CREATE TABLE working_table AS (SELECT * FROM report LEFT OUTER JOIN journal_list on report.ISSN = journal_list.issn AND report.ISSN = journal_list.issnl)")
+    # con.sql("SELECT * FROM working_table").show()
+
     # Create a list of distinct ISSN column items
-    issn_tuple = con.sql("SELECT DISTINCT ISSN FROM report WHERE COLUMNS('Request Type') = 'Article'").fetchall()
+    issn_tuple = con.sql("SELECT DISTINCT ISSN FROM working_table WHERE issn IS NOT NULL AND issnl IS NULL").fetchall()
     issn_column = [item[0] for item in issn_tuple]
     logger.debug(issn_column)
 
     # TODO Add cleanup to catch extra characters ie. dashes in isbn
+    # TODO Compare issn_list and isbn_list against isxn_lookup table. Remove matches from list.
 
     # Create issn_list from issn_column
     issn_list = remove_non_issn(issn_column)
     logger.debug(issn_list)
-    
-    # Create isbn_list from issn_column
-    isbn_list = remove_non_isbn(issn_column)
-    logger.debug(isbn_list)
-    
-    # TODO Compare issn_list and isbn_list against isxn_lookup table. Remove matches from list.
 
     # Lookup requests for title by issn
-    # issn_and_titles = issn_lookup(issn_list)
-    # logger.debug(issn_and_titles)
-    # if issn_and_titles:
-        # con.executemany("INSERT INTO isxn_lookup VALUES (?, ?, ?)", issn_and_titles)
-    # else:
-        # logger.info("Scraped journal list is empty.")
+    issn_and_titles = issn_lookup(issn_list)
+    logger.debug(issn_and_titles)
+    if issn_and_titles:
+        con.executemany("INSERT INTO isxn_lookup VALUES (?, ?, ?)", issn_and_titles)
+    else:
+        logger.info("Scraped journal list is empty.")
+
+    con.sql("UPDATE working_table SET issn_1 = isxn_lookup.ISSN AND journalLabel = isxn_lookup.normalized_title FROM isxn_lookup WHERE working_table.ISSN = isxn_lookup.ISSN")
+
+    # Create isbn_list from issn_column
+    # isbn_list = remove_non_isbn(issn_column)
+    # logger.debug(isbn_list)
 
     # Lookup requests for title by isbn
     # isbn_and_titles = isbn_lookup(isbn_list)
@@ -64,13 +69,14 @@ def normalize(xlsx_file):
     # else:
         # logger.info("Scraped book list is empty.")
 
-    # Add columns and match new data in isxn_lookup to report and save file
+    # Save file
     path = Path(xlsx_file)
     save_xlsx_file = path.parent / (path.stem + "_NORMALIZED" + path.suffix)
-    con.sql(f"COPY (SELECT * FROM report LEFT OUTER JOIN journal_list on report.ISSN = journal_list.issn LEFT OUTER JOIN book_list on report.ISSN = book_list.isbn_13) TO '{save_xlsx_file}' WITH (FORMAT xlsx, HEADER true)")
+    con.sql(f"COPY working_table TO '{save_xlsx_file}' WITH (FORMAT xlsx, HEADER true)")
+    
+    # con.sql(f"COPY (SELECT * FROM report LEFT OUTER JOIN journal_list on report.ISSN = journal_list.issn LEFT OUTER JOIN book_list on report.ISSN = book_list.isbn_13) TO '{save_xlsx_file}' WITH (FORMAT xlsx, HEADER true)")
 
     # con.sql(f"COPY (SELECT * FROM report LEFT OUTER JOIN isxn_lookup on report.ISSN = isxn_lookup.ISSN) TO '{save_xlsx_file}' WITH (FORMAT xlsx, HEADER true)")
-
     
 def main():
     logging.basicConfig(format="%(levelname)s:%(message)s", level=logging.DEBUG)
