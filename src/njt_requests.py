@@ -20,10 +20,10 @@ def issn_lookup(issn_list):
             if "message" in data:
                 journal_info = data["message"]
                 if "ISSN" in journal_info:
-                    new_issn = journal_info["ISSN"][0]
+                    issn = journal_info["ISSN"][0]
                 if "title" in journal_info:
-                    new_title = journal_info["title"]
-                issn_and_titles.append(tuple((x_issn, new_issn, new_title)))
+                    journalLabel = journal_info["title"]
+                issn_and_titles.append(tuple((journalLabel, issn)))
 
         except HTTPError:
             logger.exception("Crossref exception HTTP error occurred")

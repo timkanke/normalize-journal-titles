@@ -17,15 +17,15 @@ def normalize(xlsx_file):
     con = duckdb.connect(':memory:')
 
     # Create isxn_lookup table
-    con.execute("CREATE TABLE IF NOT EXISTS isxn_lookup (ISSN VARCHAR, normalized_isxn VARCHAR, normalized_title VARCHAR)")
+    # con.execute("CREATE TABLE IF NOT EXISTS isxn_lookup (ISSN VARCHAR, normalized_isxn VARCHAR, normalized_title VARCHAR)")
 
     # load file
     con.execute("CREATE TABLE report AS SELECT * FROM read_xlsx(?)", [xlsx_file])
 
     # load lookup_tables
     con.execute("CREATE TABLE book_list AS SELECT * FROM './data_lookup_tables/book_list_wikidata.csv'")
-    con.sql("UPDATE book_list SET isbn_13 = REPLACE(isbn_13, '-', '')")
-    con.sql("UPDATE book_list SET isbn_10 = REPLACE(isbn_10, '-', '')")
+    con.sql("UPDATE book_list SET isbn13 = REPLACE(isbn13, '-', '')")
+    con.sql("UPDATE book_list SET isbn10 = REPLACE(isbn10, '-', '')")
     # con.sql("SELECT * FROM book_list").show()
 
     con.execute("CREATE TABLE journal_list AS SELECT * FROM './data_lookup_tables/journal_list_wikidata.csv'")
@@ -51,11 +51,13 @@ def normalize(xlsx_file):
     issn_and_titles = issn_lookup(issn_list)
     logger.debug(issn_and_titles)
     if issn_and_titles:
-        con.executemany("INSERT INTO isxn_lookup VALUES (?, ?, ?)", issn_and_titles)
+        # con.executemany("INSERT INTO isxn_lookup VALUES (?, ?, ?)", issn_and_titles)
+        con.executemany("INSERT INTO journal_list (journalLabel, issn) VALUES (?, ?)", issn_and_titles)
+        con.sql("SELECT * FROM journal_list WHERE issnl IS NULL").show()
     else:
         logger.info("Scraped journal list is empty.")
 
-    con.sql("UPDATE working_table SET issn_1 = isxn_lookup.ISSN AND journalLabel = isxn_lookup.normalized_title FROM isxn_lookup WHERE working_table.ISSN = isxn_lookup.ISSN")
+    # con.sql("INSERT INTO journal_list VALUES issn = isxn_lookup.ISSN AND journalLabel = isxn_lookup.normalized_title FROM isxn_lookup")
 
     # Create isbn_list from issn_column
     # isbn_list = remove_non_isbn(issn_column)
@@ -72,9 +74,11 @@ def normalize(xlsx_file):
     # Save file
     path = Path(xlsx_file)
     save_xlsx_file = path.parent / (path.stem + "_NORMALIZED" + path.suffix)
-    con.sql(f"COPY working_table TO '{save_xlsx_file}' WITH (FORMAT xlsx, HEADER true)")
+    con.sql(f"CREATE TABLE final_table AS (SELECT * FROM report LEFT OUTER JOIN journal_list on report.ISSN = journal_list.issn)")
+    con.sql(f"COPY final_table TO '{save_xlsx_file}' WITH (FORMAT xlsx, HEADER true)")
     
-    # con.sql(f"COPY (SELECT * FROM report LEFT OUTER JOIN journal_list on report.ISSN = journal_list.issn LEFT OUTER JOIN book_list on report.ISSN = book_list.isbn_13) TO '{save_xlsx_file}' WITH (FORMAT xlsx, HEADER true)")
+    # con.sql(f"CREATE TABLE final_table AS (SELECT * FROM report LEFT OUTER JOIN journal_list on report.ISSN = journal_list.issn AND report.ISSN = journal_list.issnl)")
+    # con.sql(f"COPY (SELECT * FROM report LEFT OUTER JOIN journal_list on report.ISSN = journal_list.issn LEFT OUTER JOIN book_list on report.ISSN = book_list.isbn13) TO '{save_xlsx_file}' WITH (FORMAT xlsx, HEADER true)")
 
     # con.sql(f"COPY (SELECT * FROM report LEFT OUTER JOIN isxn_lookup on report.ISSN = isxn_lookup.ISSN) TO '{save_xlsx_file}' WITH (FORMAT xlsx, HEADER true)")
     
