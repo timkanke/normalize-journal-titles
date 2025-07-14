@@ -31,6 +31,7 @@ def normalize(xlsx_file):
     con.execute("CREATE TABLE IF NOT EXISTS journal_list AS SELECT * FROM './data_lookup_tables/journal_list_wikidata.csv'")
     # con.sql("SELECT * FROM journal_list").show()
 
+    # TODO Add isbn to join
     # Create working table joining wikidata list issn
     con.sql(f"CREATE TABLE working_table AS (SELECT * FROM report LEFT OUTER JOIN journal_list on report.ISSN = journal_list.issn AND report.ISSN = journal_list.issnl)")
     # con.sql("SELECT * FROM working_table").show()
@@ -61,15 +62,19 @@ def normalize(xlsx_file):
     isbn_and_titles = isbn_lookup_lc(isbn_list)
     logger.debug(isbn_and_titles)
     if isbn_and_titles:
-        con.executemany("INSERT INTO book_list (bookLabel, isbn_13) VALUES (?, ?)", isbn_and_titles)
+        con.executemany("INSERT INTO book_list (bookLabel, isbn13) VALUES (?, ?)", isbn_and_titles)
     else:
         logger.info("Scraped book list is empty.")
 
     # Save file
     path = Path(xlsx_file)
     save_xlsx_file = path.parent / (path.stem + "_NORMALIZED" + path.suffix)
-    con.sql(f"CREATE TABLE final_table AS (SELECT * FROM report LEFT OUTER JOIN journal_list on report.ISSN = journal_list.issn LEFT OUTER JOIN book_list on report.ISSN = book_list.isbn13)")
+    con.sql(f"CREATE TABLE final_table AS (SELECT * FROM report LEFT OUTER JOIN journal_list on report.ISSN = journal_list.issn)")
+    con.sql(f"SELECT * FROM final_table LEFT OUTER JOIN book_list on final_table.ISSN = book_list.isbn13")
     con.sql(f"COPY final_table TO '{save_xlsx_file}' WITH (FORMAT xlsx, HEADER true)")
+
+    # con.sql(f"COPY journal_list TO './data_lookup_tables/journal_list_wikidata.csv' WITH (HEADER, DELIMITER ',')")
+    # con.sql(f"COPY book_list TO './data_lookup_tables/book_list_wikidata.csv' WITH (HEADER, DELIMITER ',')")
     
 
 def main():

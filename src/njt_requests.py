@@ -1,5 +1,6 @@
 import logging
 import requests
+import time
 import xml.etree.ElementTree as ET
 
 from requests.exceptions import RequestException, HTTPError, ConnectionError, Timeout
@@ -24,7 +25,7 @@ def issn_lookup(issn_list):
                     issn = journal_info["ISSN"][0]
                 if "title" in journal_info:
                     journalLabel = journal_info["title"]
-                issn_and_titles.append(tuple((journalLabel, issn)))
+                    issn_and_titles.append(tuple((journalLabel, issn)))
 
         except HTTPError:
             logger.exception("Crossref exception HTTP error occurred")
@@ -78,21 +79,17 @@ def isbn_lookup_google(isbn_list):
 def isbn_lookup_lc(isbn_list):
     isbn_and_titles = []
     for x_isbn in isbn_list:
-    
+        time.sleep(5)
         try:
-            url = 'http://lx2.loc.gov:210/lcdb?version=1.1&operation=searchRetrieve&query=' + x_isbn + '"&startRecord=1&maximumRecords=5&recordSchema=mods'
+            url = 'http://lx2.loc.gov:210/lcdb?version=1.1&operation=searchRetrieve&query=' + str(x_isbn) + '&startRecord=1&maximumRecords=5&recordSchema=mods'
             response = requests.get(url)
-            xml_data = response.json()
-            root = ET.fromstring(xml_data)
-            
+            tree = ET.fromstring(response.text)
+
             # Find the title element and extract the title text
-            title_element = root.find('title')
+            title_element = tree.find('.//{http://www.loc.gov/mods/v3}title')
             if title_element is not None:
                 new_title = title_element.text
-                logger.debug(f"{x_isbn} , {new_title}")
                 isbn_and_titles.append(tuple((x_isbn, new_title)))
-            if 'error' in xml_data:
-                logger.debug(f"Error")
                     
         except HTTPError:
             logger.exception("LoC exception HTTP error occurred")
