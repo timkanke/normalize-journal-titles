@@ -1,6 +1,7 @@
 
 import logging
 import requests
+import time
 import xml.etree.ElementTree as ET
 
 from requests.exceptions import RequestException, HTTPError, ConnectionError, Timeout, JSONDecodeError
@@ -10,34 +11,23 @@ logger = logging.getLogger(__name__)
 def isbn_lookup_lc(isbn_list):
     isbn_and_titles = []
     for x_isbn in isbn_list:
-    
+        time.sleep(5)
         try:
             url = 'http://lx2.loc.gov:210/lcdb?version=1.1&operation=searchRetrieve&query=' + str(x_isbn) + '&startRecord=1&maximumRecords=5&recordSchema=mods'
             response = requests.get(url)
             tree = ET.fromstring(response.text)
+            # ns = {'m': 'http://www.loc.gov/mods/v3'}
 
             print(response.text)
             print(f'_____')
-            print(tree.text)
-            print(f'_____')
-            print(tree.findall('{http://www.loc.gov/mods/v3}recordInfo'))
-            # root = tree.getroot()
-
-            # for title in root.findall('title'):
-                # print(title.tag, title.attrib)
 
             # Find the title element and extract the title text
-            # for records in root.findall('records'):
-                # print(records)
-                # title_element = records.find('record.recordData.mods.titleInfo')
-                # print(title_element.text)
-                # if title_element is not None:
-                    # new_title = title_element.text
-                    # logger.debug(f"{x_isbn} , {new_title}")
-                    # isbn_and_titles.append(tuple((x_isbn, new_title)))
-                # if 'error' in records:
-                    # logger.debug(f"Error")
-                    
+            title_element = tree.find('.//{http://www.loc.gov/mods/v3}title')
+            if title_element is not None:
+                new_title = title_element.text
+                print(f"Title: {title_element.text}")
+                isbn_and_titles.append(tuple((x_isbn, new_title)))
+
         except HTTPError:
             logger.exception("LoC exception HTTP error occurred")
         except ConnectionError:
@@ -51,15 +41,17 @@ def isbn_lookup_lc(isbn_list):
         else:
             logger.info("LoC Request was successful.")
 
+    # print(isbn_and_titles)
     return isbn_and_titles
 
 
 def main():
     logging.basicConfig(format="%(levelname)s:%(message)s", level=logging.DEBUG)
-
-    isbn_list = [9780060777579]
-    isbn_lookup_lc(isbn_list)
     
+    isbn_list = [9780060777579, 9780123693983, 9780078021770]
+    isbn_lookup_lc(isbn_list)    
+    isbn_and_titles = isbn_lookup_lc(isbn_list)
+    logger.debug(isbn_and_titles)
 
 
 if __name__ == "__main__":

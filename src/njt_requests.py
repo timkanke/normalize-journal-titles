@@ -89,7 +89,14 @@ def isbn_lookup_lc(isbn_list):
             title_element = tree.find('.//{http://www.loc.gov/mods/v3}title')
             if title_element is not None:
                 new_title = title_element.text
-                isbn_and_titles.append(tuple((x_isbn, new_title)))
+                if len(x_isbn) > 12:
+                    isbn10 = None
+                    isbn13 = x_isbn
+                else:
+                    isbn10 = x_isbn
+                    isbn13 = None
+                    
+                isbn_and_titles.append(tuple((new_title, isbn10, isbn13)))
                     
         except HTTPError:
             logger.exception("LoC exception HTTP error occurred")
