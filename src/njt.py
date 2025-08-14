@@ -1,165 +1,92 @@
 import click
+import duckdb
 import logging
-import pandas as pd
-import os
-import requests
+import re
 
-from requests.exceptions import RequestException, HTTPError, ConnectionError, Timeout
+from pathlib import Path
+
+from njt_isxn_utils import remove_non_issn, remove_non_isbn
+from njt_requests import issn_lookup, isbn_lookup_lc
 
 logger = logging.getLogger(__name__)
 
 @click.command()
 @click.argument('xlsx_file', type=click.Path(exists=True))
-def normalize_data(xlsx_file):
-    excel_object = pd.ExcelFile(xlsx_file)
-    df_all = pd.read_excel(xlsx_file, sheet_name = excel_object.sheet_names[0], engine='openpyxl')
-    df_all.info()
+def normalize(xlsx_file):
+    # TODO Change to persitent storage when adding comparing lists feature.
+    con = duckdb.connect(':memory:')
 
-    # Select Data
-    ill_df = pd.read_excel(xlsx_file, usecols=["Transaction Number",\
-    "Request Type", "Process Type", "Photo Journal Title",\
-    "Photo Journal Year", "ISSN", "Creation Date", "Status",\
-    "Transaction Status", "Reason For Cancellation", "Document Type",\
-    "Department"])
+    # load file
+    con.execute("CREATE TABLE report AS SELECT * FROM read_xlsx(?)", [xlsx_file])
+
+    # Convert issn without hyphen to have one
+    con.sql("UPDATE report SET ISSN = regexp_replace(ISSN, '(\\d{4})(\\d{4})', '\\1-\\2') WHERE LENGTH(ISSN) = 8")
+
+    # load lookup_tables
+    con.execute("CREATE TABLE IF NOT EXISTS book_list AS SELECT * FROM './data_lookup_tables/book_list_wikidata.csv'")
+    con.sql("UPDATE book_list SET isbn13 = REPLACE(isbn13, '-', '')")
+    con.sql("UPDATE book_list SET isbn10 = REPLACE(isbn10, '-', '')")
+    # con.sql("SELECT * FROM book_list").show()
+
+    con.execute("CREATE TABLE IF NOT EXISTS journal_list AS SELECT * FROM './data_lookup_tables/journal_list_wikidata.csv'")
+    # con.sql("SELECT * FROM journal_list").show()
+
+    # TODO Add isbn to join
+    # Create working table joining wikidata list issn
+    con.sql(f"CREATE TABLE working_table AS (SELECT * FROM report LEFT OUTER JOIN journal_list on report.ISSN = journal_list.issn AND report.ISSN = journal_list.issnl)")
+    # con.sql("SELECT * FROM working_table").show()
+
+    # Create a list of distinct ISSN column items
+    issn_tuple = con.sql("SELECT DISTINCT ISSN FROM working_table WHERE issn IS NOT NULL AND issnl IS NULL").fetchall()
+    issn_column = [item[0] for item in issn_tuple]
+    logger.debug(issn_column)
+
+    # Create issn_list from issn_column
+    issn_list = remove_non_issn(issn_column)
+    logger.debug(issn_list)
+
+    # Lookup requests for title by issn
+    issn_and_titles = issn_lookup(issn_list)
+    logger.debug(issn_and_titles)
+    if issn_and_titles:
+        con.executemany("INSERT INTO journal_list (journalLabel, issn) VALUES (?, ?)", issn_and_titles)
+        # con.sql("SELECT * FROM journal_list WHERE issnl IS NULL").show()
+    else:
+        logger.info("Scraped journal list is empty.")
+
+    # Create isbn_list from issn_column
+    isbn_list = remove_non_isbn(issn_column)
+    logger.debug(isbn_list)
+
+    # Lookup requests for title by isbn
+    isbn_and_titles = isbn_lookup_lc(isbn_list)
+    logger.debug(isbn_and_titles)
+    if isbn_and_titles:
+        con.executemany("INSERT INTO book_list (bookLabel, isbn13, isbn10) VALUES (?, ?, ?)", isbn_and_titles)
+    else:
+        logger.info("Scraped book list is empty.")
+
+    con.sql(f"CREATE TABLE list_table (NormalizedTitle VARCHAR, isxn VARCHAR, isxn_1 VARCHAR)")
+    con.sql(f"INSERT INTO list_table (NormalizedTitle, isxn, isxn_1) SELECT journalLabel AS NormalizedTitle, issn AS isxn, issnl AS isxn_1 FROM journal_list")
+    con.sql(f"INSERT INTO list_table (NormalizedTitle, isxn, isxn_1) SELECT bookLabel AS NormalizedTitle, isbn10 AS isxn, isbn13 AS isxn_1 FROM book_list")
+
+    # Save file
+    path = Path(xlsx_file)
+    save_xlsx_file = path.parent / (path.stem + "_NORMALIZED" + path.suffix)
+    con.sql(f"CREATE TABLE final_table AS (SELECT * FROM report LEFT OUTER JOIN list_table ON report.ISSN = list_table.isxn OR report.ISSN = list_table.isxn_1)")
+    # con.sql(f"CREATE TABLE final_table AS (SELECT * FROM report LEFT OUTER JOIN journal_list on report.ISSN = journal_list.issn)")
+    # con.sql(f"SELECT * FROM final_table LEFT OUTER JOIN book_list on final_table.ISSN = book_list.isbn13")
+    con.sql(f"COPY final_table TO '{save_xlsx_file}' WITH (FORMAT xlsx, HEADER true)")
+
+    # con.sql(f"COPY journal_list TO './data_lookup_tables/journal_list_wikidata.csv' WITH (HEADER, DELIMITER ',')")
+    # con.sql(f"COPY book_list TO './data_lookup_tables/book_list_wikidata.csv' WITH (HEADER, DELIMITER ',')")
     
-    # Filter for only Article requests
-    filter = ill_df["Request Type"].isin(["Article"])
-    article = ill_df[filter]
-    article.info()
-
-    # ISSN LOOK UP
-    issn_list = list(article["ISSN"])
-    transaction_list = list(article['Transaction Number'])
-
-    # Initialize a new dataframe
-    new_df = pd.DataFrame(columns=['Transaction Number', 'issn', 'title', 'original'])
-
-    # Update the Transaction Number
-    for idx, v in enumerate(transaction_list):
-        new_df.loc[idx, 'Transaction Number'] = v
-
-    # Iterate through the transaction list and search for corresponding ISSNs and titles from CrossRef
-    for idx, x in enumerate(issn_list):
-        x = str(x)
-        new_df.loc[idx, 'original'] = x
-        x_short = x.replace("-", "").replace(" ", "").strip()
-
-        if len(x_short) == 8:
-            x_issn = x_short[0:4] + "-" + x_short[4:8]
-            
-            api_url = f"https://api.crossref.org/journals/{x_issn}"
-            
-            try:
-                headers = {'User-Agent': 'ISSN-info/1.0 (mailto:myexample@email.com)'}
-                response = requests.get(api_url, headers=headers)
-                data = response.json()
-                
-                # Retrieve the ISSN and title from the response
-                if "message" in data:
-                    journal_info = data["message"]
-                    if "ISSN" in journal_info:
-                        new_df.loc[idx, "issn"] = journal_info["ISSN"][0]
-                    if "title" in journal_info:
-                        new_df.loc[idx, "title"] = journal_info["title"]
-                        
-            except HTTPError:
-                logger.exception("Crossref exception HTTP error occurred: {http_err}")
-            except ConnectionError:
-                logger.exception("Crossref exception Connection error occurred: {conn_err}")
-            except Timeout:
-                logger.exception("Crossref exception Timeout error occurred: {timeout_err}")
-            except RequestException:
-                logger.exception("Crossref exception An error occurred: {req_err}")
-            else:
-                logger.info("Crossref Request was successful.")
-            
-    # Iterate through the transaction list and search for corresponding ISSNs and titles from Google Books
-
-        elif len(x_short) == 13 or len(x_short) == 10:
-            try:
-                api_key = "AIzaSyAvvo85uFwMwPVtpsPczXcQjX2Y1Iok0EI"
-                url = "https://www.googleapis.com/books/v1/volumes?q=isbn:" + x_short + "&key=" + api_key
-                response = requests.get(url)
-                book_data = response.json()
-                
-                if 'items' in book_data:
-                    items = book_data['items']
-                    if len(items) > 0:
-                        volume_info = items[0]['volumeInfo']
-                        new_df.loc[idx, 'issn'] = volume_info['industryIdentifiers'][0]['identifier']
-                        new_df.loc[idx, 'title'] = volume_info['title']
-                        
-            except HTTPError:
-                logger.exception("Google Books exception HTTP error occurred: {http_err}")
-            except ConnectionError:
-                logger.exception("Google Books exception Connection error occurred: {conn_err}")
-            except Timeout:
-                logger.exception("Google Books exception Timeout error occurred: {timeout_err}")
-            except RequestException:
-                logger.exception("Google Books exception An error occurred: {req_err}")
-            else:
-                logger.info("Google Books Request was successful.")
-
-    # Convert Transaction Number to numeric data type 
-
-    issn_title_lookup = pd.DataFrame(new_df, columns=['Transaction Number', 'issn', 'title'])
-    issn_title_lookup['Transaction Number'] = pd.to_numeric(issn_title_lookup['Transaction Number'], downcast='integer')
-    issn_title_lookup.columns = ['Transaction Number', 'issn', 'title']
-
-    """ UPDATE DATA """
-
-    # Merge data and replace values
-    def merge_data(df, lookup_df):
-        # Merge data
-        df_merged = pd.merge(df, lookup_df[['Transaction Number', 'issn', 'title']], how='left', on='Transaction Number')
-
-        # Replace the "ISSN" in df with the corresponding values from lookup_df where available
-        df_merged.loc[lookup_df['issn'].notnull(), 'ISSN'] = lookup_df.loc[lookup_df['issn'].notnull(), 'issn']
-
-        # Replace the "Photo Journal Title" column in df with the corresponding values from lookup_df where available
-        df_merged.loc[lookup_df['title'].notnull(), 'Photo Journal Title'] = lookup_df.loc[lookup_df['title'].notnull(), 'title']
-
-        # Convert "Creation Date" to datetime and extract "year"
-        df_merged['Creation Date'] = pd.to_datetime(df_merged['Creation Date']).dt.strftime('%Y-%m-%d')
-        df_merged['year'] = pd.DatetimeIndex(df_merged['Creation Date']).year
-
-        # Drop the 'issn' and 'TITLE' columns
-        df_merged.drop(['issn', 'title'], axis=1, inplace=True)
-        
-        return df_merged
-
-    # Update data with issn_title_lookup data
-    df_updated = merge_data(article, issn_title_lookup)
-
-    # Filter for Borrowing and Lending requests
-    borrowing = df_updated[df_updated["Process Type"].isin(["Borrowing"])]
-    lending = df_updated[df_updated["Process Type"].isin(["Lending"])]
-
-    # Define the file names and dataframes
-    file_names = []
-    borrowing.name = 'borrowing'
-    lending.name = 'lending'
-    data_frames = [borrowing, lending]
-
-    # Loop through the data frames and assign file name
-    for data_frame in data_frames:
-        file_name = os.path.basename(xlsx_file)
-        file_name_without_extension, extension = os.path.splitext(file_name)
-        save_name = f"{file_name_without_extension}_{data_frame.name}_NORMALIZED{extension}"
-        file_names.append(save_name)
-
-    # Save to files
-    for file_name, data_frame in zip(file_names, data_frames):
-        file_path = f"./example_data/{file_name}"
-        data_frame.to_excel(file_path, index=False)
-        logger.info(f"Saved {file_name}")
-
 
 def main():
-    logging.basicConfig(format="%(levelname)s:%(message)s", level=logging.INFO)
+    logging.basicConfig(format="%(levelname)s:%(message)s", level=logging.DEBUG)
 
-    logger.info("Hello from normalize-journal-titles!")
-    normalize_data()
+    logger.info("Starting")
+    normalize()
 
 
 if __name__ == "__main__":
