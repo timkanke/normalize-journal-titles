@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 @click.command()
 @click.argument('xlsx_file', type=click.Path(exists=True))
 def normalize(xlsx_file):
-    # TODO Change to persitent storage when adding comparing lists feature.
     con = duckdb.connect(':memory:')
 
     # load file
@@ -24,8 +23,9 @@ def normalize(xlsx_file):
 
     # load lookup_tables
     con.execute("CREATE TABLE IF NOT EXISTS book_list AS SELECT * FROM './data_lookup_tables/book_list_wikidata.csv'")
-    con.sql("UPDATE book_list SET isbn13 = REPLACE(isbn13, '-', '')")
-    con.sql("UPDATE book_list SET isbn10 = REPLACE(isbn10, '-', '')")
+    # Need replace for first time using Wikidata data
+    #con.sql("UPDATE book_list SET isbn13 = REPLACE(isbn13, '-', '')")
+    #con.sql("UPDATE book_list SET isbn10 = REPLACE(isbn10, '-', '')")
 
     con.execute("CREATE TABLE IF NOT EXISTS journal_list AS SELECT * FROM './data_lookup_tables/journal_list_wikidata.csv'")
 
@@ -72,6 +72,10 @@ def normalize(xlsx_file):
     con.sql(f"CREATE TABLE final_table AS (SELECT * FROM report LEFT OUTER JOIN list_table ON report.ISSN = list_table.isxn OR report.ISSN = list_table.isxn_1)")
     con.sql(f"COPY final_table TO '{save_xlsx_file}' WITH (FORMAT xlsx, HEADER true)")
     
+    # Save look up tables to CSV
+    con.sql(f"COPY journal_list TO'./data_lookup_tables/journal_list_wikidata.csv' (HEADER, DELIMITER ',')")
+    con.sql(f"COPY book_list TO'./data_lookup_tables/book_list_wikidata.csv' (HEADER, DELIMITER ',')")
+
 
 def main():
     logging.basicConfig(format="%(levelname)s:%(message)s", level=logging.DEBUG)
