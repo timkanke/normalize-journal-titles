@@ -38,43 +38,7 @@ def issn_lookup(issn_list):
         else:
             logger.info("Crossref Request was successful.")
 
-    return issn_and_titles
-        
-# Iterate through the transaction list and search for corresponding ISSNs and titles from Google Books
-def isbn_lookup_google(isbn_list):
-    isbn_and_titles = []
-    for x_isbn in isbn_list:
-    
-        try:
-            api_key = "AIzaSyAvvo85uFwMwPVtpsPczXcQjX2Y1Iok0EI"
-            url = "https://www.googleapis.com/books/v1/volumes?q=isbn:" + x_isbn + "&key=" + api_key
-            response = requests.get(url)
-            book_data = response.json()
-            
-            if 'items' in book_data:
-                items = book_data['items']
-                if len(items) > 0:
-                    volume_info = items[0]['volumeInfo']
-                    new_isbn = volume_info['industryIdentifiers'][0]['identifier']
-                    new_title = volume_info['title']
-                    logger.debug(f"{new_isbn} , {new_title}")
-                    isbn_and_titles.append(tuple((x_isbn, new_isbn, new_title)))
-            if 'error' in book_data:
-                logger.debug(f"Error")
-                    
-        except HTTPError:
-            logger.exception("Google Books exception HTTP error occurred")
-        except ConnectionError:
-            logger.exception("Google Books exception Connection error occurred")
-        except Timeout:
-            logger.exception("Google Books exception Timeout error occurred")
-        except RequestException:
-            logger.exception("Google Books exception An error occurred")
-        else:
-            logger.info("Google Books Request was successful.")
-
-    return isbn_and_titles
-
+    return issn_and_titles      
 
 def isbn_lookup_lc(isbn_list):
     isbn_and_titles = []
